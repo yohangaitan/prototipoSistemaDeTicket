@@ -16,12 +16,89 @@ public class TeknosaTicketSystem extends JFrame {
     private JPasswordField passwordField;
     private JTextArea descriptionArea, outputArea;
     private JComboBox<String> priorityCombo, statusCombo;
-    private JButton submitButton, clearButton, loginButton, registerButton, deleteButton, assignButton;
+    private JButton submitButton, clearButton, loginButton, registerButton, deleteButton, assignButton, logoutButton, viewHistoryButton;
     private JPanel loginPanel, ticketPanel;
     private CardLayout cardLayout;
     private boolean isAdmin = false;
     private int currentUserId;
 
+    private void logout() {
+    clearFields();
+    emailField.setText("");
+    passwordField.setText("");
+    currentUserId = 0;
+    isAdmin = false;
+    cardLayout.show(getContentPane(), "login");
+}
+    
+    private void mostrarCronologia() {
+    String input = JOptionPane.showInputDialog(this, "ID del ticket:");
+    if (input != null) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM cronologia WHERE id_ticket = ? ORDER BY fecha")) {
+            pstmt.setInt(1, Integer.parseInt(input));
+            ResultSet rs = pstmt.executeQuery();
+
+            StringBuilder history = new StringBuilder("Cronología del Ticket #" + input + ":\n\n");
+            while (rs.next()) {
+                history.append(String.format("[%s] %s ➝ %s (Usuario ID: %d)\n",
+                    rs.getTimestamp("fecha").toLocalDateTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                    rs.getString("estado_anterior"), rs.getString("estado_nuevo"), rs.getInt("id_usuario")));
+            }
+
+            JOptionPane.showMessageDialog(this, history.toString());
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error al cargar cronología: " + ex.getMessage());
+        }
+    }
+}
+
+    
+    private void updateTicketStatus() {
+    if (!isAdmin) return;
+
+    String input = JOptionPane.showInputDialog(this, "ID del ticket para cambiar estado:");
+    if (input != null) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            // Obtener estado actual
+            String estadoAnterior = "";
+            PreparedStatement sel = conn.prepareStatement("SELECT estado FROM tickets WHERE id_ticket = ?");
+            sel.setInt(1, Integer.parseInt(input));
+            ResultSet rs = sel.executeQuery();
+            if (rs.next()) estadoAnterior = rs.getString("estado");
+            sel.close();
+
+            // Actualizar nuevo estado
+            String nuevoEstado = (String) statusCombo.getSelectedItem();
+            PreparedStatement update = conn.prepareStatement("UPDATE tickets SET estado = ? WHERE id_ticket = ?");
+            update.setString(1, nuevoEstado);
+            update.setInt(2, Integer.parseInt(input));
+            update.executeUpdate();
+            update.close();
+
+            // Guardar en cronología
+            PreparedStatement crono = conn.prepareStatement(
+                "INSERT INTO cronologia(id_ticket, estado_anterior, estado_nuevo, id_usuario) VALUES (?, ?, ?, ?)");
+            crono.setInt(1, Integer.parseInt(input));
+            crono.setString(2, estadoAnterior);
+            crono.setString(3, nuevoEstado);
+            crono.setInt(4, currentUserId);
+            crono.executeUpdate();
+            crono.close();
+
+            logAction("TICKET", "Cambio de estado", currentUserId);
+            loadTickets();
+            JOptionPane.showMessageDialog(this, "Estado actualizado y registrado en cronología.");
+
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error al actualizar estado: " + e.getMessage());
+        }
+    }
+}
+
+
+    
     public TeknosaTicketSystem() {
         setTitle("TEKNOSA - Sistema de Tickets");
         setSize(1000, 700);
@@ -48,7 +125,9 @@ public class TeknosaTicketSystem extends JFrame {
         emailField = new JTextField(20);
         passwordField = new JPasswordField(20);
         loginButton = new JButton("Iniciar Sesión");
+        logoutButton = new JButton("Cerrar Sesión");
         registerButton = new JButton("Crear Cuenta");
+        viewHistoryButton = new JButton("Ver Cronología");
         ((AbstractDocument)titleField.getDocument()).setDocumentFilter(new ValidationFilter());
         ((AbstractDocument)descriptionArea.getDocument()).setDocumentFilter(new ValidationFilter());
     }
@@ -100,6 +179,9 @@ public class TeknosaTicketSystem extends JFrame {
         buttonPanel.add(submitButton);
         buttonPanel.add(deleteButton);
         buttonPanel.add(assignButton);
+        buttonPanel.add(logoutButton);
+        buttonPanel.add(viewHistoryButton);
+
         gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
         formPanel.add(buttonPanel, gbc);
         ticketPanel.add(formPanel, BorderLayout.NORTH);
@@ -110,7 +192,10 @@ public class TeknosaTicketSystem extends JFrame {
     }
 
     private void setupValidations() {
+        viewHistoryButton.addActionListener(e -> mostrarCronologia());
+        statusCombo.addActionListener(e -> updateTicketStatus());
         loginButton.addActionListener(e -> authenticateUser());
+        logoutButton.addActionListener(e -> logout());
         submitButton.addActionListener(e -> {
             if (validateFields()) createTicket();
         });
