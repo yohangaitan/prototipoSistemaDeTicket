@@ -23,7 +23,6 @@ public class TeknosaTicketSystem extends JFrame {
     private CardLayout cardLayout;
     private boolean isAdmin = false;
     private int currentUserId;
-    private JCheckBox showPasswordCheckBox; // AÑADIDO: CheckBox para mostrar contraseña
 
     // ======================== MÉTODOS DE NAVEGACIÓN =====================
     private void logout() {
@@ -34,24 +33,26 @@ public class TeknosaTicketSystem extends JFrame {
         isAdmin = false;
         cardLayout.show(getContentPane(), "login");
         outputArea.setText("");
-        updateUIBasedOnRole();
     }
 
-    // ======================== CRONOLOGÍA ===============================
+    // ======================== CRONOLOGÍA ================================
     private void mostrarCronologia() {
         String input = JOptionPane.showInputDialog(this, "ID del ticket:");
         if (input != null) {
             try {
                 int ticketId = Integer.parseInt(input);
                 try (Connection conn = DatabaseConnection.getConnection();
-                     PreparedStatement pstmt = conn.prepareStatement("SELECT * FROM cronologia WHERE id_ticket = ? ORDER BY fecha")) {
+                     PreparedStatement pstmt = conn.prepareStatement(
+                         "SELECT * FROM cronologia WHERE id_ticket = ? ORDER BY fecha")) {
                     pstmt.setInt(1, ticketId);
                     try (ResultSet rs = pstmt.executeQuery()) {
                         StringBuilder history = new StringBuilder("Cronología del Ticket #" + input + ":\n\n");
                         while (rs.next()) {
                             history.append(String.format("[%s] %s ➝ %s (Usuario ID: %d)\n",
-                                rs.getTimestamp("fecha").toLocalDateTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-                                rs.getString("estado_anterior"), rs.getString("estado_nuevo"), rs.getInt("id_usuario")));
+                                rs.getTimestamp("fecha").toLocalDateTime().format(
+                                    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                                rs.getString("estado_anterior"), rs.getString("estado_nuevo"),
+                                rs.getInt("id_usuario")));
                         }
                         JOptionPane.showMessageDialog(this, history.toString());
                     }
@@ -64,22 +65,18 @@ public class TeknosaTicketSystem extends JFrame {
         }
     }
 
-    // ======================== ACTUALIZAR ESTADO DE TICKET ========================
+    // ======================== ACTUALIZAR ESTADO =========================
     private void updateTicketStatus() {
-        if (!isAdmin) {
-            JOptionPane.showMessageDialog(this, "Solo los administradores pueden cambiar el estado de un ticket.");
-            return;
-        }
-
+        if (!isAdmin) return;
+        
         String input = JOptionPane.showInputDialog(this, "ID del ticket para cambiar estado:");
         if (input != null) {
             try {
                 int ticketId = Integer.parseInt(input);
-
-                // Obtener estado actual
                 String estadoAnterior = "";
                 try (Connection conn = DatabaseConnection.getConnection();
-                     PreparedStatement sel = conn.prepareStatement("SELECT estado FROM tickets WHERE id_ticket = ?")) {
+                     PreparedStatement sel = conn.prepareStatement(
+                         "SELECT estado FROM tickets WHERE id_ticket = ?")) {
                     sel.setInt(1, ticketId);
                     try (ResultSet rs = sel.executeQuery()) {
                         if (rs.next()) {
@@ -90,17 +87,14 @@ public class TeknosaTicketSystem extends JFrame {
                         }
                     }
                 }
-
-                // Actualizar nuevo estado
                 String nuevoEstado = (String) statusCombo.getSelectedItem();
                 try (Connection conn = DatabaseConnection.getConnection();
-                     PreparedStatement update = conn.prepareStatement("UPDATE tickets SET estado = ? WHERE id_ticket = ?")) {
+                     PreparedStatement update = conn.prepareStatement(
+                         "UPDATE tickets SET estado = ? WHERE id_ticket = ?")) {
                     update.setString(1, nuevoEstado);
                     update.setInt(2, ticketId);
                     update.executeUpdate();
                 }
-
-                // Guardar en cronología
                 try (Connection conn = DatabaseConnection.getConnection();
                      PreparedStatement crono = conn.prepareStatement(
                          "INSERT INTO cronologia(id_ticket, estado_anterior, estado_nuevo, id_usuario) VALUES (?, ?, ?, ?)")) {
@@ -110,11 +104,9 @@ public class TeknosaTicketSystem extends JFrame {
                     crono.setInt(4, currentUserId);
                     crono.executeUpdate();
                 }
-
                 logAction("TICKET", "Cambio de estado", currentUserId);
                 loadTickets();
                 JOptionPane.showMessageDialog(this, "Estado actualizado y registrado en cronología.");
-
             } catch (NumberFormatException e) {
                 JOptionPane.showMessageDialog(this, "ID de ticket inválido. Por favor, introduzca un número.");
             } catch (SQLException e) {
@@ -136,42 +128,42 @@ public class TeknosaTicketSystem extends JFrame {
         updateUIBasedOnRole();
     }
 
-    // ======================== INICIALIZAR COMPONENTES ====================
+    // ======================== INICIALIZACIÓN UI =========================
     private void initComponents() {
         titleField = new JTextField(30);
         descriptionArea = new JTextArea(8, 30);
         descriptionArea.setLineWrap(true);
         priorityCombo = new JComboBox<>(new String[]{"ALTA", "MEDIA", "BAJA"});
-        statusCombo = new JComboBox<>(new String[]{"NUEVO", "ASIGNADO", "EN_PROCESO", "RESUELTO", "COMPLETO"});
+        statusCombo = new JComboBox<>(new String[]{"NUEVO", "EN PROCESO", "COMPLETO"});
+
         submitButton = new JButton("Crear Ticket");
         clearButton = new JButton("Limpiar");
         deleteButton = new JButton("Eliminar Ticket");
         assignButton = new JButton("Asignar Ticket");
-        editButton = new JButton("Editar Ticket");
-        chatButton = new JButton("Iniciar Chat");
+        editButton = new JButton("Modificar Ticket");
+        chatButton = new JButton("Chat");
+        logoutButton = new JButton("Cerrar Sesión");
+        viewHistoryButton = new JButton("Ver Cronología");
 
-        outputArea = new JTextPane();
+        outputArea = new JTextPane(); // Cambiado a JTextPane
         outputArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(outputArea);
+        outputArea.setContentType("text/html");
 
         emailField = new JTextField(20);
         passwordField = new JPasswordField(20);
-        showPasswordCheckBox = new JCheckBox("Mostrar contraseña"); // AÑADIDO: Inicialización del CheckBox
         loginButton = new JButton("Iniciar Sesión");
-        logoutButton = new JButton("Cerrar Sesión");
         registerButton = new JButton("Crear Cuenta");
-        viewHistoryButton = new JButton("Ver Cronología");
 
-        ((AbstractDocument)titleField.getDocument()).setDocumentFilter(new ValidationFilter());
-        ((AbstractDocument)descriptionArea.getDocument()).setDocumentFilter(new ValidationFilter());
+        ((AbstractDocument) titleField.getDocument()).setDocumentFilter(new ValidationFilter());
+        ((AbstractDocument) descriptionArea.getDocument()).setDocumentFilter(new ValidationFilter());
     }
 
-    // ======================== CONFIGURAR LAYOUT ==========================
+    // ======================== LAYOUT =====================================
     private void setupLayout() {
         cardLayout = new CardLayout();
         setLayout(cardLayout);
 
-        // --- Panel de Login ---
+        // Panel de Login
         loginPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
@@ -183,34 +175,35 @@ public class TeknosaTicketSystem extends JFrame {
         loginPanel.add(new JLabel("Contraseña:"), gbc);
         gbc.gridx = 1;
         loginPanel.add(passwordField, gbc);
-        gbc.gridx = 1; gbc.gridy = 2; // AÑADIDO: Posición del CheckBox
-        gbc.anchor = GridBagConstraints.WEST; // Alinear a la izquierda
-        loginPanel.add(showPasswordCheckBox, gbc); // AÑADIDO: Añadir el CheckBox al panel
-
-        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.CENTER;
+        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
         loginPanel.add(loginButton, gbc);
-        gbc.gridy = 4;
+        gbc.gridy = 3;
         loginPanel.add(registerButton, gbc);
 
-        // --- Panel de Tickets ---
+        // Panel de Tickets
         ticketPanel = new JPanel(new BorderLayout(10, 10));
         ticketPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
         JPanel formPanel = new JPanel(new GridBagLayout());
         gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
+
         gbc.gridx = 0; gbc.gridy = 0;
         formPanel.add(new JLabel("Título:"), gbc);
         gbc.gridx = 1;
         formPanel.add(titleField, gbc);
+
         gbc.gridx = 0; gbc.gridy = 1;
         formPanel.add(new JLabel("Descripción:"), gbc);
         gbc.gridx = 1;
         formPanel.add(new JScrollPane(descriptionArea), gbc);
+
         gbc.gridx = 0; gbc.gridy = 2;
         formPanel.add(new JLabel("Prioridad:"), gbc);
         gbc.gridx = 1;
         formPanel.add(priorityCombo, gbc);
+
         gbc.gridx = 0; gbc.gridy = 3;
         formPanel.add(new JLabel("Estado:"), gbc);
         gbc.gridx = 1;
@@ -219,16 +212,16 @@ public class TeknosaTicketSystem extends JFrame {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(clearButton);
         buttonPanel.add(submitButton);
+        buttonPanel.add(editButton);
         buttonPanel.add(deleteButton);
         buttonPanel.add(assignButton);
-        buttonPanel.add(editButton);
         buttonPanel.add(chatButton);
-        buttonPanel.add(viewHistoryButton);
         buttonPanel.add(logoutButton);
-
+        buttonPanel.add(viewHistoryButton);
 
         gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2;
         formPanel.add(buttonPanel, gbc);
+
         ticketPanel.add(formPanel, BorderLayout.NORTH);
         ticketPanel.add(new JScrollPane(outputArea), BorderLayout.CENTER);
 
@@ -236,54 +229,40 @@ public class TeknosaTicketSystem extends JFrame {
         add(ticketPanel, "tickets");
     }
 
-    // ======================== CONFIGURAR VALIDACIONES Y LISTENERS ========================
+    // ======================== VALIDACIONES Y EVENTOS =====================
     private void setupValidations() {
         viewHistoryButton.addActionListener(e -> mostrarCronologia());
         statusCombo.addActionListener(e -> updateTicketStatus());
         loginButton.addActionListener(e -> authenticateUser());
         logoutButton.addActionListener(e -> logout());
-        submitButton.addActionListener(e -> {
-            if (validateFields()) createTicket();
-        });
+        submitButton.addActionListener(e -> { if (validateFields()) createTicket(); });
         clearButton.addActionListener(e -> clearFields());
         registerButton.addActionListener(e -> showRegistrationDialog());
         deleteButton.addActionListener(e -> deleteTicket());
         assignButton.addActionListener(e -> assignTicket());
-        // AÑADIDO: Listener para el CheckBox de mostrar contraseña
-        showPasswordCheckBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (showPasswordCheckBox.isSelected()) {
-                    passwordField.setEchoChar((char) 0); // Muestra caracteres
-                } else {
-                    passwordField.setEchoChar('*'); // Oculta caracteres
-                }
-            }
-        });
+        editButton.addActionListener(e -> editTicket());
+        chatButton.addActionListener(e -> openChatDialog());
     }
 
-    // ======================== CONFIGURAR BASE DE DATOS ========================
+    // ======================== DATABASE SETUP =============================
     private void setupDatabase() {
         try {
             DatabaseConnection.getConnection();
             addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(WindowEvent e) {
+                @Override public void windowClosing(WindowEvent e) {
                     DatabaseConnection.closeConnection();
                 }
             });
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error al conectar: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
-    // ======================== AUTENTICACIÓN DE USUARIO ========================
+    // ======================== AUTENTICACIÓN ==============================
     private void authenticateUser() {
         String email = emailField.getText().trim();
         String password = new String(passwordField.getPassword());
-        // MODIFICADO: Seleccionar apellido también
-        String sql = "SELECT id_usuario, nombre, apellido, es_administrador FROM usuarios WHERE email = ? AND password = SHA2(?, 256)";
+        String sql = "SELECT id_usuario, nombre, es_administrador FROM usuarios WHERE email = ? AND password = SHA2(?, 256)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, email);
@@ -292,15 +271,11 @@ public class TeknosaTicketSystem extends JFrame {
                 if (rs.next()) {
                     currentUserId = rs.getInt("id_usuario");
                     isAdmin = rs.getBoolean("es_administrador");
-                    
                     updateUIBasedOnRole();
-                    
                     cardLayout.show(getContentPane(), "tickets");
-                    String userName = rs.getString("nombre"); 
-                    String userLastName = rs.getString("apellido"); // AÑADIDO: Obtener el apellido
+                    String userName = rs.getString("nombre");
                     loadTickets();
-                    // MODIFICADO: Mostrar también el apellido
-                    JOptionPane.showMessageDialog(this, "Bienvenido " + userName + " " + userLastName + (isAdmin ? " (Admin)" : ""));
+                    JOptionPane.showMessageDialog(this, "Bienvenido " + userName + (isAdmin ? " (Admin)" : ""));
                 } else {
                     JOptionPane.showMessageDialog(this, "Credenciales incorrectas");
                 }
@@ -310,26 +285,24 @@ public class TeknosaTicketSystem extends JFrame {
         }
     }
 
-    // ======================== ACTUALIZAR LA INTERFAZ DE USUARIO SEGÚN EL ROL ========================
+    // ======================== ACTUALIZAR UI POR ROL =====================
     private void updateUIBasedOnRole() {
-        // Campos de creación de ticket (comunes a ambos roles, pero prioridad editable solo por admin)
         titleField.setEditable(true);
         descriptionArea.setEditable(true);
         submitButton.setVisible(true);
         clearButton.setVisible(true);
-
-        // Ocultar/deshabilitar para usuarios normales
+        chatButton.setVisible(true);
+        
         deleteButton.setVisible(isAdmin);
         assignButton.setVisible(isAdmin);
-        editButton.setVisible(isAdmin); // Por defecto visible para admin
-        chatButton.setVisible(true); // Asumimos chat es visible para ambos, pero la lógica interna puede variar
-
+        editButton.setVisible(isAdmin);
         statusCombo.setEnabled(isAdmin);
         priorityCombo.setEnabled(isAdmin);
         viewHistoryButton.setVisible(isAdmin);
+        statusCombo.setVisible(isAdmin);
     }
 
-    // ======================== VALIDACIÓN DE CAMPOS ========================
+    // ======================== VALIDACIÓN DE CAMPOS =======================
     private boolean validateFields() {
         if (titleField.getText().trim().isEmpty()) {
             JOptionPane.showMessageDialog(this, "El título no puede estar vacío");
@@ -342,7 +315,7 @@ public class TeknosaTicketSystem extends JFrame {
         return true;
     }
 
-    // ======================== CREAR TICKET ========================
+    // ======================== CREAR TICKET ===============================
     private void createTicket() {
         String sql = "INSERT INTO tickets (titulo, descripcion, prioridad, estado, id_cliente) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -362,7 +335,64 @@ public class TeknosaTicketSystem extends JFrame {
         }
     }
 
-    // ======================== ELIMINAR TICKET ========================
+    // ======================== MODIFICAR TICKET ===========================
+    private void editTicket() {
+        if (!isAdmin) {
+            JOptionPane.showMessageDialog(this, "Solo los administradores pueden modificar tickets.");
+            return;
+        }
+        String input = JOptionPane.showInputDialog(this, "ID del ticket a modificar:");
+        if (input == null) return;
+        try {
+            int ticketId = Integer.parseInt(input);
+            try (Connection conn = DatabaseConnection.getConnection();
+                 PreparedStatement sel = conn.prepareStatement(
+                     "SELECT titulo, descripcion, prioridad FROM tickets WHERE id_ticket = ?")) {
+                sel.setInt(1, ticketId);
+                try (ResultSet rs = sel.executeQuery()) {
+                    if (!rs.next()) {
+                        JOptionPane.showMessageDialog(this, "Ticket con ID " + ticketId + " no encontrado.");
+                        return;
+                    }
+                    String curTitulo = rs.getString("titulo");
+                    String curDesc = rs.getString("descripcion");
+                    String curPrio = rs.getString("prioridad");
+
+                    JTextField tField = new JTextField(curTitulo);
+                    JTextArea dArea = new JTextArea(curDesc, 5, 30);
+                    dArea.setLineWrap(true);
+                    JComboBox<String> pCombo = new JComboBox<>(new String[]{"ALTA", "MEDIA", "BAJA"});
+                    pCombo.setSelectedItem(curPrio);
+
+                    JPanel panel = new JPanel(new GridLayout(0, 1));
+                    panel.add(new JLabel("Título:")); panel.add(tField);
+                    panel.add(new JLabel("Descripción:")); panel.add(new JScrollPane(dArea));
+                    panel.add(new JLabel("Prioridad:")); panel.add(pCombo);
+
+                    int res = JOptionPane.showConfirmDialog(this, panel, "Modificar Ticket", JOptionPane.OK_CANCEL_OPTION);
+                    if (res == JOptionPane.OK_OPTION) {
+                        try (PreparedStatement upd = conn.prepareStatement(
+                                "UPDATE tickets SET titulo = ?, descripcion = ?, prioridad = ? WHERE id_ticket = ?")) {
+                            upd.setString(1, tField.getText());
+                            upd.setString(2, dArea.getText());
+                            upd.setString(3, (String) pCombo.getSelectedItem());
+                            upd.setInt(4, ticketId);
+                            upd.executeUpdate();
+                        }
+                        logAction("TICKET", "Ticket modificado", currentUserId);
+                        loadTickets();
+                        JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " modificado exitosamente.");
+                    }
+                }
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "ID de ticket inválido.");
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error al modificar ticket: " + e.getMessage());
+        }
+    }
+
+    // ======================== ELIMINAR TICKET ============================
     private void deleteTicket() {
         if (!isAdmin) {
             JOptionPane.showMessageDialog(this, "Solo los administradores pueden eliminar tickets.");
@@ -385,14 +415,14 @@ public class TeknosaTicketSystem extends JFrame {
                     }
                 }
             } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(this, "ID de ticket inválido. Por favor, introduzca un número.");
+                JOptionPane.showMessageDialog(this, "ID de ticket inválido.");
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(this, "Error al eliminar ticket: " + e.getMessage());
             }
         }
     }
 
-    // ======================== ASIGNAR TICKET ========================
+    // ======================== ASIGNAR TICKET =============================
     private void assignTicket() {
         if (!isAdmin) {
             JOptionPane.showMessageDialog(this, "Solo los administradores pueden asignar tickets.");
@@ -401,84 +431,186 @@ public class TeknosaTicketSystem extends JFrame {
         JTextField idField = new JTextField();
         JTextField userField = new JTextField();
         JPanel panel = new JPanel(new GridLayout(0, 1));
-        panel.add(new JLabel("ID del Ticket:"));
-        panel.add(idField);
-        panel.add(new JLabel("ID de usuario asignado:"));
-        panel.add(userField);
+        panel.add(new JLabel("ID del Ticket:")); panel.add(idField);
+        panel.add(new JLabel("ID de usuario asignado:")); panel.add(userField);
         int result = JOptionPane.showConfirmDialog(this, panel, "Asignar Ticket", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
             try {
                 int ticketId = Integer.parseInt(idField.getText());
                 int userIdToAssign = Integer.parseInt(userField.getText());
-
                 try (Connection conn = DatabaseConnection.getConnection();
-                     PreparedStatement pstmt = conn.prepareStatement("UPDATE tickets SET id_soporte = ?, estado = 'ASIGNADO' WHERE id_ticket = ?")) {
+                     PreparedStatement pstmt = conn.prepareStatement(
+                         "UPDATE tickets SET id_soporte = ?, estado = 'EN PROCESO' WHERE id_ticket = ?")) {
                     pstmt.setInt(1, userIdToAssign);
                     pstmt.setInt(2, ticketId);
                     int affectedRows = pstmt.executeUpdate();
-
                     if (affectedRows > 0) {
                         logAction("TICKET", "Ticket asignado", currentUserId);
                         loadTickets();
-                        JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " asignado a usuario ID " + userIdToAssign + " y estado actualizado a ASIGNADO.");
+                        JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " asignado a usuario ID " + userIdToAssign + ".");
                     } else {
-                        JOptionPane.showMessageDialog(this, "Ticket con ID " + ticketId + " no encontrado o usuario de soporte inválido.");
+                        JOptionPane.showMessageDialog(this, "Ticket o usuario no encontrado.");
                     }
                 }
             } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(this, "ID de ticket o usuario inválido. Por favor, introduzca números.");
+                JOptionPane.showMessageDialog(this, "ID inválido.");
             } catch (Exception e) {
-        JOptionPane.showMessageDialog(this, "Error al asignar ticket: " + e.getMessage());
+                JOptionPane.showMessageDialog(this, "Error al asignar ticket: " + e.getMessage());
             }
         }
     }
 
-    // ======================== CARGAR TICKETS Y MOSTRAR INDICADORES ========================
+    // ======================== CARGAR TICKETS =============================
     private void loadTickets() {
         outputArea.setText("");
-        // MODIFICADO: Seleccionar apellido del cliente también
+        StringBuilder htmlBuilder = new StringBuilder();
+        htmlBuilder.append("<html><body>");
+        
         String sql = isAdmin ?
-            "SELECT t.*, u.nombre as cliente, u.apellido as cliente_apellido FROM tickets t JOIN usuarios u ON t.id_cliente = u.id_usuario ORDER BY t.fecha_creacion DESC" :
-            "SELECT t.*, u.nombre as cliente, u.apellido as cliente_apellido FROM tickets t JOIN usuarios u ON t.id_cliente = u.id_usuario WHERE t.id_cliente = ? ORDER BY t.fecha_creacion DESC";
+            "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
+            "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
+            "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
+            "ORDER BY t.fecha_creacion DESC" :
+            "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
+            "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
+            "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
+            "WHERE t.id_cliente = ? ORDER BY t.fecha_creacion DESC";
+            
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             if (!isAdmin) pstmt.setInt(1, currentUserId);
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     String status = rs.getString("estado");
-                    String indicator = "";
+                    String color;
                     switch (status.toUpperCase()) {
-                        case "NUEVO":
-                            indicator = "🔴 "; // Rojo para no completa/nueva
-                            break;
-                        case "ASIGNADO":
-                        case "EN_PROCESO":
-                            indicator = "🟡 "; // Amarillo para en proceso
-                            break;
-                        case "RESUELTO":
-                        case "COMPLETO":
-                            indicator = "🟢 "; // Verde para atendida/resuelta/completa
-                            break;
-                        default:
-                            indicator = ""; // Sin indicador por defecto
+                        case "NUEVO": color = "red"; break;
+                        case "EN PROCESO": color = "orange"; break;
+                        case "COMPLETO": color = "green"; break;
+                        default: color = "black";
                     }
-
-                    outputArea.setText(outputArea.getText() + String.format(
-                        "Ticket #%d: %s\nCliente: %s %s | Prioridad: %s | Estado: %s%s\nCreado: %s\nDescripción: %s\n-----------------------\n",
-                        rs.getInt("id_ticket"), rs.getString("titulo"), 
-                        rs.getString("cliente"), rs.getString("cliente_apellido"), // AÑADIDO: Mostrar apellido del cliente
-                        rs.getString("prioridad"), indicator, status,
-                        rs.getTimestamp("fecha_creacion").toLocalDateTime().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
-                        rs.getString("descripcion")
-                    ));
+                    
+                    String soporte = rs.getString("soporte");
+                    if (soporte == null) soporte = "Sin asignar";
+                    
+                    htmlBuilder.append(String.format(
+                        "<div style='margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;'>" +
+                        "<b>Ticket #%d:</b> %s<br>" +
+                        "<b>Cliente:</b> %s | <b>Soporte:</b> %s | <b>Prioridad:</b> %s | " +
+                        "<b>Estado:</b> <span style='color:%s;'>%s</span><br>" +
+                        "<b>Creado:</b> %s<br>" +
+                        "<b>Descripción:</b> %s</div>",
+                        rs.getInt("id_ticket"), 
+                        rs.getString("titulo"), 
+                        rs.getString("cliente"), 
+                        soporte,
+                        rs.getString("prioridad"), 
+                        color, 
+                        status,
+                        rs.getTimestamp("fecha_creacion").toLocalDateTime()
+                            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                        rs.getString("descripcion")));
                 }
             }
+            htmlBuilder.append("</body></html>");
+            outputArea.setText(htmlBuilder.toString());
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error SQL: " + e.getMessage());
         }
     }
 
-    // ======================== AUDITORÍA ========================
+    // ======================== CHAT =======================================
+    private void openChatDialog() {
+        String input = JOptionPane.showInputDialog(this, "ID del ticket para chatear:");
+        if (input == null) return;
+        try {
+            int ticketId = Integer.parseInt(input);
+            if (!isAdmin) {
+                String checkSql = "SELECT COUNT(*) FROM tickets WHERE id_ticket = ? AND id_cliente = ?";
+                try (Connection conn = DatabaseConnection.getConnection();
+                     PreparedStatement chk = conn.prepareStatement(checkSql)) {
+                    chk.setInt(1, ticketId);
+                    chk.setInt(2, currentUserId);
+                    try (ResultSet cr = chk.executeQuery()) {
+                        if (cr.next() && cr.getInt(1) == 0) {
+                            JOptionPane.showMessageDialog(this, "No tienes permiso para ver este ticket.");
+                            return;
+                        }
+                    }
+                }
+            }
+            ChatDialog cd = new ChatDialog(this, ticketId);
+            cd.setVisible(true);
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "ID inválido.");
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error de acceso: " + e.getMessage());
+        }
+    }
+
+    // ======================== CHAT DIALOG ================================
+    private class ChatDialog extends JDialog {
+        private final int ticketId;
+        private final JTextArea chatArea = new JTextArea(15, 40);
+        private final JTextField messageField = new JTextField();
+        private final JButton sendButton = new JButton("Enviar");
+        private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+
+        ChatDialog(JFrame parent, int ticketId) throws SQLException {
+            super(parent, "Chat del Ticket #" + ticketId, true);
+            this.ticketId = ticketId;
+            setLayout(new BorderLayout(5, 5));
+            chatArea.setEditable(false);
+            add(new JScrollPane(chatArea), BorderLayout.CENTER);
+            JPanel south = new JPanel(new BorderLayout());
+            south.add(messageField, BorderLayout.CENTER);
+            south.add(sendButton, BorderLayout.EAST);
+            add(south, BorderLayout.SOUTH);
+            sendButton.addActionListener(e -> sendMessage());
+            messageField.addActionListener(e -> sendMessage());
+            loadMessages();
+            pack();
+            setLocationRelativeTo(parent);
+        }
+
+        private void loadMessages() {
+            String sql = "SELECT m.*, u.nombre FROM mensajes m JOIN usuarios u ON m.id_usuario = u.id_usuario WHERE id_ticket = ? ORDER BY fecha_envio";
+            chatArea.setText("");
+            try (Connection conn = DatabaseConnection.getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, ticketId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    while (rs.next()) {
+                        LocalDateTime f = rs.getTimestamp("fecha_envio").toLocalDateTime();
+                        chatArea.append(String.format("[%s] %s: %s\n",
+                            f.format(fmt), rs.getString("nombre"), rs.getString("mensaje")));
+                    }
+                }
+            } catch (SQLException e) {
+                chatArea.append("Error cargando mensajes: " + e.getMessage() + "\n");
+            }
+        }
+
+        private void sendMessage() {
+            String msg = messageField.getText().trim();
+            if (msg.isEmpty()) return;
+            String sql = "INSERT INTO mensajes(id_ticket, id_usuario, mensaje) VALUES (?, ?, ?)";
+            try (Connection conn = DatabaseConnection.getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, ticketId);
+                pstmt.setInt(2, currentUserId);
+                pstmt.setString(3, msg);
+                pstmt.executeUpdate();
+                logAction("MENSAJE", "Nuevo mensaje", currentUserId);
+                messageField.setText("");
+                loadMessages();
+            } catch (SQLException e) {
+                JOptionPane.showMessageDialog(this, "Error enviando mensaje: " + e.getMessage());
+            }
+        }
+    }
+
+    // ======================== AUDITORÍA ==================================
     private void logAction(String entity, String action, int userId) {
         String sql = "INSERT INTO auditoria (accion, entidad, id_usuario, detalles, ip_origen) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getConnection();
@@ -497,50 +629,40 @@ public class TeknosaTicketSystem extends JFrame {
     // ======================== REGISTRO DE USUARIO ========================
     private void showRegistrationDialog() {
         JTextField nameField = new JTextField();
-        JTextField lastNameField = new JTextField(); // AÑADIDO: Nuevo campo para apellido
         JTextField regEmail = new JTextField();
         JPasswordField regPass = new JPasswordField();
         JPanel panel = new JPanel(new GridLayout(0, 1));
         panel.add(new JLabel("Nombre:")); panel.add(nameField);
-        panel.add(new JLabel("Apellido:")); panel.add(lastNameField); // AÑADIDO: Añadir campo de apellido al diálogo
         panel.add(new JLabel("Email:")); panel.add(regEmail);
         panel.add(new JLabel("Contraseña:")); panel.add(regPass);
         int result = JOptionPane.showConfirmDialog(this, panel, "Registro de Usuario", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
-            if (regEmail.getText().trim().isEmpty() || !Pattern.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$", regEmail.getText())) {
-                JOptionPane.showMessageDialog(this, "Por favor, introduce un email válido.");
+            if (regEmail.getText().trim().isEmpty() ||
+                !Pattern.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}$", regEmail.getText())) {
+                JOptionPane.showMessageDialog(this, "Email inválido.");
                 return;
             }
             if (new String(regPass.getPassword()).trim().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "La contraseña no puede estar vacía.");
+                JOptionPane.showMessageDialog(this, "Contraseña vacía.");
                 return;
             }
-            // AÑADIDO: Validación para nombre y apellido no vacíos (opcional, pero buena práctica)
-            if (nameField.getText().trim().isEmpty() || lastNameField.getText().trim().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "El nombre y el apellido no pueden estar vacíos.");
-                return;
-            }
-
-
-            // MODIFICADO: Insertar apellido también en la sentencia SQL
-            String sql = "INSERT INTO usuarios(nombre, apellido, email, password, es_administrador) VALUES (?, ?, ?, SHA2(?, 256), false)";
             try (Connection conn = DatabaseConnection.getConnection();
-                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                 PreparedStatement pstmt = conn.prepareStatement(
+                     "INSERT INTO usuarios(nombre, email, password, es_administrador) VALUES (?, ?, SHA2(?, 256), false)")) {
                 pstmt.setString(1, nameField.getText());
-                pstmt.setString(2, lastNameField.getText()); // AÑADIDO: Asignar el apellido
-                pstmt.setString(3, regEmail.getText());
-                pstmt.setString(4, new String(regPass.getPassword()));
+                pstmt.setString(2, regEmail.getText());
+                pstmt.setString(3, new String(regPass.getPassword()));
                 pstmt.executeUpdate();
-                JOptionPane.showMessageDialog(this, "Cuenta creada exitosamente. Ahora puedes iniciar sesión.");
+                JOptionPane.showMessageDialog(this, "Cuenta creada exitosamente.");
             } catch (SQLIntegrityConstraintViolationException e) {
-                JOptionPane.showMessageDialog(this, "Error de registro: El email ya está registrado. " + e.getMessage());
+                JOptionPane.showMessageDialog(this, "El email ya está registrado.");
             } catch (SQLException e) {
                 JOptionPane.showMessageDialog(this, "Error de registro: " + e.getMessage());
             }
         }
     }
 
-    // ======================== LIMPIAR CAMPOS ========================
+    // ======================== LIMPIAR CAMPOS =============================
     private void clearFields() {
         titleField.setText("");
         descriptionArea.setText("");
