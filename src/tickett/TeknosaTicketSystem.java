@@ -26,14 +26,21 @@ public class TeknosaTicketSystem extends JFrame {
 
     // ======================== MÉTODOS DE NAVEGACIÓN =====================
     private void logout() {
-        clearFields();
-        emailField.setText("");
-        passwordField.setText("");
-        currentUserId = 0;
-        isAdmin = false;
-        cardLayout.show(getContentPane(), "login");
-        outputArea.setText("");
-    }
+    // Remover temporalmente el listener
+    statusCombo.removeActionListener(statusCombo.getActionListeners()[0]);
+    
+    // Limpiar campos y cambiar de panel
+    clearFields();
+    emailField.setText("");
+    passwordField.setText("");
+    currentUserId = 0;
+    isAdmin = false;
+    cardLayout.show(getContentPane(), "login");
+    outputArea.setText("");
+    
+    // Volver a agregar el listener
+    statusCombo.addActionListener(e -> updateTicketStatus());
+}
 
     // ======================== CRONOLOGÍA ================================
     private void mostrarCronologia() {
