@@ -134,6 +134,9 @@ public class TeknosaTicketSystem extends JFrame {
         setupDatabase();
         updateUIBasedOnRole();
     }
+    
+    private JCheckBox showPasswordCheckBox;
+
 
     // ======================== INICIALIZACIÓN UI =========================
     private void initComponents() {
@@ -158,6 +161,7 @@ public class TeknosaTicketSystem extends JFrame {
 
         emailField = new JTextField(20);
         passwordField = new JPasswordField(20);
+        showPasswordCheckBox = new JCheckBox("Mostrar contraseña");
         loginButton = new JButton("Iniciar Sesión");
         registerButton = new JButton("Crear Cuenta");
 
@@ -183,8 +187,10 @@ public class TeknosaTicketSystem extends JFrame {
         gbc.gridx = 1;
         loginPanel.add(passwordField, gbc);
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
-        loginPanel.add(loginButton, gbc);
+        loginPanel.add(showPasswordCheckBox, gbc);
         gbc.gridy = 3;
+        loginPanel.add(loginButton, gbc);
+        gbc.gridy = 4;
         loginPanel.add(registerButton, gbc);
 
         // Panel de Tickets
@@ -249,6 +255,14 @@ public class TeknosaTicketSystem extends JFrame {
         assignButton.addActionListener(e -> assignTicket());
         editButton.addActionListener(e -> editTicket());
         chatButton.addActionListener(e -> openChatDialog());
+        showPasswordCheckBox.addActionListener(e -> {
+    if (showPasswordCheckBox.isSelected()) {
+        passwordField.setEchoChar((char) 0); // Muestra la contraseña
+    } else {
+        passwordField.setEchoChar('\u2022'); // Vuelve a ocultarla (•)
+    }
+});
+
     }
 
     // ======================== DATABASE SETUP =============================
@@ -439,7 +453,7 @@ public class TeknosaTicketSystem extends JFrame {
         JTextField userField = new JTextField();
         JPanel panel = new JPanel(new GridLayout(0, 1));
         panel.add(new JLabel("ID del Ticket:")); panel.add(idField);
-        panel.add(new JLabel("ID de usuario asignado:")); panel.add(userField);
+        panel.add(new JLabel("ID de técnico asignado:")); panel.add(userField);
         int result = JOptionPane.showConfirmDialog(this, panel, "Asignar Ticket", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
             try {
@@ -562,6 +576,8 @@ public class TeknosaTicketSystem extends JFrame {
         private final JTextField messageField = new JTextField();
         private final JButton sendButton = new JButton("Enviar");
         private final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM HH:mm");
+        private Timer refreshTimer;
+
 
         ChatDialog(JFrame parent, int ticketId) throws SQLException {
             super(parent, "Chat del Ticket #" + ticketId, true);
@@ -576,6 +592,17 @@ public class TeknosaTicketSystem extends JFrame {
             sendButton.addActionListener(e -> sendMessage());
             messageField.addActionListener(e -> sendMessage());
             loadMessages();
+            // Refrescar mensajes automáticamente cada 1 segundo
+            refreshTimer = new Timer(1000, e -> loadMessages());
+            refreshTimer.start();
+            addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                if (refreshTimer != null && refreshTimer.isRunning()) {
+                    refreshTimer.stop();
+                }
+            }
+        });
             pack();
             setLocationRelativeTo(parent);
         }
