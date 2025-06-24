@@ -22,6 +22,7 @@ public class TeknosaTicketSystem extends JFrame {
     private JPanel loginPanel, ticketPanel;
     private CardLayout cardLayout;
     private boolean isAdmin = false;
+    private boolean esTecnico = false;
     private int currentUserId;
 
     // ======================== MÉTODOS DE NAVEGACIÓN =====================
@@ -41,7 +42,12 @@ public class TeknosaTicketSystem extends JFrame {
     // Volver a agregar el listener
     statusCombo.addActionListener(e -> updateTicketStatus());
 }
+    //funcion para verificar si el usuario es tecnico
+    private boolean isSoporte() {
+    return esTecnico;
+}
 
+    
     // ======================== CRONOLOGÍA ================================
     private void mostrarCronologia() {
         String input = JOptionPane.showInputDialog(this, "ID del ticket:");
@@ -62,6 +68,7 @@ public class TeknosaTicketSystem extends JFrame {
                                 rs.getInt("id_usuario")));
                         }
                         JOptionPane.showMessageDialog(this, history.toString());
+                        
                     }
                 }
             } catch (NumberFormatException e) {
@@ -74,7 +81,7 @@ public class TeknosaTicketSystem extends JFrame {
 
     // ======================== ACTUALIZAR ESTADO =========================
     private void updateTicketStatus() {
-        if (!isAdmin) return;
+        if (!isAdmin && !isSoporte()) return;
         
         String input = JOptionPane.showInputDialog(this, "ID del ticket para cambiar estado:");
         if (input != null) {
@@ -283,7 +290,7 @@ public class TeknosaTicketSystem extends JFrame {
     private void authenticateUser() {
         String email = emailField.getText().trim();
         String password = new String(passwordField.getPassword());
-        String sql = "SELECT id_usuario, nombre, es_administrador FROM usuarios WHERE email = ? AND password = SHA2(?, 256)";
+        String sql = "SELECT id_usuario, nombre, es_administrador, es_tecnico FROM usuarios WHERE email = ? AND password = SHA2(?, 256)";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, email);
@@ -292,6 +299,7 @@ public class TeknosaTicketSystem extends JFrame {
                 if (rs.next()) {
                     currentUserId = rs.getInt("id_usuario");
                     isAdmin = rs.getBoolean("es_administrador");
+                    esTecnico = rs.getBoolean("es_tecnico");
                     updateUIBasedOnRole();
                     cardLayout.show(getContentPane(), "tickets");
                     String userName = rs.getString("nombre");
@@ -316,11 +324,11 @@ public class TeknosaTicketSystem extends JFrame {
         
         deleteButton.setVisible(isAdmin);
         assignButton.setVisible(isAdmin);
-        editButton.setVisible(isAdmin);
-        statusCombo.setEnabled(isAdmin);
-        priorityCombo.setEnabled(isAdmin);
-        viewHistoryButton.setVisible(isAdmin);
-        statusCombo.setVisible(isAdmin);
+        editButton.setVisible(isAdmin || isSoporte());
+        statusCombo.setEnabled(isAdmin || isSoporte());
+        priorityCombo.setEnabled(isAdmin || isSoporte());
+        viewHistoryButton.setVisible(isAdmin || isSoporte());
+        statusCombo.setVisible(isAdmin || isSoporte());
     }
 
     // ======================== VALIDACIÓN DE CAMPOS =======================
@@ -358,60 +366,95 @@ public class TeknosaTicketSystem extends JFrame {
 
     // ======================== MODIFICAR TICKET ===========================
     private void editTicket() {
-        if (!isAdmin) {
-            JOptionPane.showMessageDialog(this, "Solo los administradores pueden modificar tickets.");
-            return;
-        }
-        String input = JOptionPane.showInputDialog(this, "ID del ticket a modificar:");
-        if (input == null) return;
-        try {
-            int ticketId = Integer.parseInt(input);
-            try (Connection conn = DatabaseConnection.getConnection();
-                 PreparedStatement sel = conn.prepareStatement(
-                     "SELECT titulo, descripcion, prioridad FROM tickets WHERE id_ticket = ?")) {
-                sel.setInt(1, ticketId);
-                try (ResultSet rs = sel.executeQuery()) {
-                    if (!rs.next()) {
-                        JOptionPane.showMessageDialog(this, "Ticket con ID " + ticketId + " no encontrado.");
-                        return;
-                    }
-                    String curTitulo = rs.getString("titulo");
-                    String curDesc = rs.getString("descripcion");
-                    String curPrio = rs.getString("prioridad");
+    if (!isAdmin && !isSoporte()) {
+        JOptionPane.showMessageDialog(this, "Solo administradores o técnicos pueden modificar tickets.");
+        return;
+    }
 
-                    JTextField tField = new JTextField(curTitulo);
-                    JTextArea dArea = new JTextArea(curDesc, 5, 30);
-                    dArea.setLineWrap(true);
-                    JComboBox<String> pCombo = new JComboBox<>(new String[]{"ALTA", "MEDIA", "BAJA"});
-                    pCombo.setSelectedItem(curPrio);
+    String input = JOptionPane.showInputDialog(this, "ID del ticket a modificar:");
+    if (input == null) return;
 
-                    JPanel panel = new JPanel(new GridLayout(0, 1));
+    try {
+        int ticketId = Integer.parseInt(input);
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement sel = conn.prepareStatement(
+                     "SELECT titulo, descripcion, prioridad, estado FROM tickets WHERE id_ticket = ?")) {
+
+            sel.setInt(1, ticketId);
+            try (ResultSet rs = sel.executeQuery()) {
+                if (!rs.next()) {
+                    JOptionPane.showMessageDialog(this, "Ticket con ID " + ticketId + " no encontrado.");
+                    return;
+                }
+
+                // Datos actuales
+                String curTitulo = rs.getString("titulo");
+                String curDesc = rs.getString("descripcion");
+                String curPrio = rs.getString("prioridad");
+                String curEstado = rs.getString("estado");
+
+                // Componentes
+                JTextField tField = new JTextField(curTitulo);
+                JTextArea dArea = new JTextArea(curDesc, 5, 30);
+                dArea.setLineWrap(true);
+                JComboBox<String> pCombo = new JComboBox<>(new String[]{"ALTA", "MEDIA", "BAJA"});
+                pCombo.setSelectedItem(curPrio);
+                JComboBox<String> sCombo = new JComboBox<>(new String[]{"NUEVO", "EN PROCESO", "COMPLETO"});
+                sCombo.setSelectedItem(curEstado);
+
+                // Panel de edición
+                JPanel panel = new JPanel(new GridLayout(0, 1));
+
+                if (isAdmin) {
                     panel.add(new JLabel("Título:")); panel.add(tField);
                     panel.add(new JLabel("Descripción:")); panel.add(new JScrollPane(dArea));
-                    panel.add(new JLabel("Prioridad:")); panel.add(pCombo);
+                }
 
-                    int res = JOptionPane.showConfirmDialog(this, panel, "Modificar Ticket", JOptionPane.OK_CANCEL_OPTION);
-                    if (res == JOptionPane.OK_OPTION) {
+                panel.add(new JLabel("Prioridad:")); panel.add(pCombo);
+                panel.add(new JLabel("Estado:")); panel.add(sCombo);
+
+                int res = JOptionPane.showConfirmDialog(this, panel, "Modificar Ticket", JOptionPane.OK_CANCEL_OPTION);
+
+                if (res == JOptionPane.OK_OPTION) {
+                    String nuevaPrioridad = (String) pCombo.getSelectedItem();
+                    String nuevoEstado = (String) sCombo.getSelectedItem();
+
+                    if (isAdmin) {
                         try (PreparedStatement upd = conn.prepareStatement(
-                                "UPDATE tickets SET titulo = ?, descripcion = ?, prioridad = ? WHERE id_ticket = ?")) {
+                                "UPDATE tickets SET titulo = ?, descripcion = ?, prioridad = ?, estado = ? WHERE id_ticket = ?")) {
                             upd.setString(1, tField.getText());
                             upd.setString(2, dArea.getText());
-                            upd.setString(3, (String) pCombo.getSelectedItem());
-                            upd.setInt(4, ticketId);
+                            upd.setString(3, nuevaPrioridad);
+                            upd.setString(4, nuevoEstado);
+                            upd.setInt(5, ticketId);
                             upd.executeUpdate();
                         }
-                        logAction("TICKET", "Ticket modificado", currentUserId);
-                        loadTickets();
-                        JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " modificado exitosamente.");
+                    } else if (isSoporte()) {
+                        try (PreparedStatement upd = conn.prepareStatement(
+                                "UPDATE tickets SET prioridad = ?, estado = ? WHERE id_ticket = ?")) {
+                            upd.setString(1, nuevaPrioridad);
+                            upd.setString(2, nuevoEstado);
+                            upd.setInt(3, ticketId);
+                            upd.executeUpdate();
+                        }
                     }
+
+                    logAction("TICKET", "Ticket modificado", currentUserId);
+                    loadTickets();
+                    JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " modificado exitosamente.");
                 }
             }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "ID de ticket inválido.");
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error al modificar ticket: " + e.getMessage());
+
         }
+    } catch (NumberFormatException e) {
+        JOptionPane.showMessageDialog(this, "ID de ticket inválido.");
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(this, "Error al modificar ticket: " + e.getMessage());
     }
+}
+
+
 
     // ======================== ELIMINAR TICKET ============================
     private void deleteTicket() {
@@ -445,41 +488,66 @@ public class TeknosaTicketSystem extends JFrame {
 
     // ======================== ASIGNAR TICKET =============================
     private void assignTicket() {
-        if (!isAdmin) {
-            JOptionPane.showMessageDialog(this, "Solo los administradores pueden asignar tickets.");
-            return;
-        }
-        JTextField idField = new JTextField();
-        JTextField userField = new JTextField();
-        JPanel panel = new JPanel(new GridLayout(0, 1));
-        panel.add(new JLabel("ID del Ticket:")); panel.add(idField);
-        panel.add(new JLabel("ID de técnico asignado:")); panel.add(userField);
-        int result = JOptionPane.showConfirmDialog(this, panel, "Asignar Ticket", JOptionPane.OK_CANCEL_OPTION);
-        if (result == JOptionPane.OK_OPTION) {
-            try {
-                int ticketId = Integer.parseInt(idField.getText());
-                int userIdToAssign = Integer.parseInt(userField.getText());
-                try (Connection conn = DatabaseConnection.getConnection();
-                     PreparedStatement pstmt = conn.prepareStatement(
-                         "UPDATE tickets SET id_soporte = ?, estado = 'EN PROCESO' WHERE id_ticket = ?")) {
+    if (!isAdmin) {
+        JOptionPane.showMessageDialog(this, "Solo los administradores pueden asignar tickets.");
+        return;
+    }
+
+    JTextField idField = new JTextField();
+    JTextField userField = new JTextField();
+    JPanel panel = new JPanel(new GridLayout(0, 1));
+    panel.add(new JLabel("ID del Ticket:")); panel.add(idField);
+    panel.add(new JLabel("ID de técnico asignado:")); panel.add(userField);
+    
+    int result = JOptionPane.showConfirmDialog(this, panel, "Asignar Ticket", JOptionPane.OK_CANCEL_OPTION);
+
+    if (result == JOptionPane.OK_OPTION) {
+        try {
+            int ticketId = Integer.parseInt(idField.getText().trim());
+            int userIdToAssign = Integer.parseInt(userField.getText().trim());
+
+            try (Connection conn = DatabaseConnection.getConnection()) {
+
+                // Validar si el usuario es técnico
+                try (PreparedStatement checkTech = conn.prepareStatement(
+                        "SELECT es_tecnico FROM usuarios WHERE id_usuario = ?")) {
+                    checkTech.setInt(1, userIdToAssign);
+                    try (ResultSet rs = checkTech.executeQuery()) {
+                        if (!rs.next()) {
+                            JOptionPane.showMessageDialog(this, "El usuario con ID " + userIdToAssign + " no existe.");
+                            return;
+                        }
+                        if (!rs.getBoolean("es_tecnico")) {
+                            JOptionPane.showMessageDialog(this, "El usuario con ID " + userIdToAssign + " no es un técnico.");
+                            return;
+                        }
+                    }
+                }
+
+                // Asignar ticket al técnico
+                try (PreparedStatement pstmt = conn.prepareStatement(
+                        "UPDATE tickets SET id_soporte = ?, estado = 'EN PROCESO' WHERE id_ticket = ?")) {
                     pstmt.setInt(1, userIdToAssign);
                     pstmt.setInt(2, ticketId);
                     int affectedRows = pstmt.executeUpdate();
                     if (affectedRows > 0) {
                         logAction("TICKET", "Ticket asignado", currentUserId);
                         loadTickets();
-                        JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " asignado a usuario ID " + userIdToAssign + ".");
+                        JOptionPane.showMessageDialog(this, "Ticket #" + ticketId + " asignado al técnico ID " + userIdToAssign + ".");
                     } else {
-                        JOptionPane.showMessageDialog(this, "Ticket o usuario no encontrado.");
+                        JOptionPane.showMessageDialog(this, "Ticket con ID " + ticketId + " no encontrado.");
                     }
                 }
-            } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(this, "ID inválido.");
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this, "Error al asignar ticket: " + e.getMessage());
             }
+
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "ID inválido. Debe ser un número.");
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error SQL: " + e.getMessage());
         }
     }
+}
+
 
     // ======================== CARGAR TICKETS =============================
     private void loadTickets() {
@@ -487,19 +555,30 @@ public class TeknosaTicketSystem extends JFrame {
         StringBuilder htmlBuilder = new StringBuilder();
         htmlBuilder.append("<html><body>");
         
-        String sql = isAdmin ?
-            "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
-            "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
-            "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
-            "ORDER BY t.fecha_creacion DESC" :
-            "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
-            "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
-            "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
-            "WHERE t.id_cliente = ? ORDER BY t.fecha_creacion DESC";
+        String sql;
+if (isAdmin) {
+    sql = "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
+          "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
+          "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
+          "ORDER BY t.fecha_creacion DESC";
+} else if (isSoporte()) {
+    sql = "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
+          "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
+          "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
+          "WHERE t.id_soporte = ? ORDER BY t.fecha_creacion DESC";
+} else {
+    sql = "SELECT t.*, cli.nombre AS cliente, sup.nombre AS soporte FROM tickets t " +
+          "JOIN usuarios cli ON t.id_cliente = cli.id_usuario " +
+          "LEFT JOIN usuarios sup ON t.id_soporte = sup.id_usuario " +
+          "WHERE t.id_cliente = ? ORDER BY t.fecha_creacion DESC";
+}
+
             
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            if (!isAdmin) pstmt.setInt(1, currentUserId);
+                if (!isAdmin) {
+        pstmt.setInt(1, currentUserId);
+    }
             try (ResultSet rs = pstmt.executeQuery()) {
                 while (rs.next()) {
                     String status = rs.getString("estado");
@@ -547,19 +626,27 @@ public class TeknosaTicketSystem extends JFrame {
         try {
             int ticketId = Integer.parseInt(input);
             if (!isAdmin) {
-                String checkSql = "SELECT COUNT(*) FROM tickets WHERE id_ticket = ? AND id_cliente = ?";
-                try (Connection conn = DatabaseConnection.getConnection();
-                     PreparedStatement chk = conn.prepareStatement(checkSql)) {
-                    chk.setInt(1, ticketId);
-                    chk.setInt(2, currentUserId);
-                    try (ResultSet cr = chk.executeQuery()) {
-                        if (cr.next() && cr.getInt(1) == 0) {
-                            JOptionPane.showMessageDialog(this, "No tienes permiso para ver este ticket.");
-                            return;
-                        }
-                    }
+    String checkSql = "SELECT id_cliente, id_soporte FROM tickets WHERE id_ticket = ?";
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement chk = conn.prepareStatement(checkSql)) {
+        chk.setInt(1, ticketId);
+        try (ResultSet cr = chk.executeQuery()) {
+            if (cr.next()) {
+                int clienteId = cr.getInt("id_cliente");
+                int soporteId = cr.getInt("id_soporte");
+
+                if (currentUserId != clienteId && currentUserId != soporteId) {
+                    JOptionPane.showMessageDialog(this, "No tienes permiso para ver este ticket.");
+                    return;
                 }
+            } else {
+                JOptionPane.showMessageDialog(this, "El ticket no existe.");
+                return;
             }
+        }
+    }
+}
+
             ChatDialog cd = new ChatDialog(this, ticketId);
             cd.setVisible(true);
         } catch (NumberFormatException e) {
