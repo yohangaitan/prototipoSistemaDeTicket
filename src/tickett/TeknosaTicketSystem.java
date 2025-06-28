@@ -213,7 +213,7 @@ public class TeknosaTicketSystem extends JFrame {
             pstmt.setBoolean(5, esAdmin);
             pstmt.setBoolean(6, esTecnico);
             pstmt.executeUpdate();
-            logAction("USUARIO", "Nuevo usuario creado por administrador", currentUserId);
+            
             JOptionPane.showMessageDialog(this, "Usuario creado exitosamente.");
         } catch (SQLIntegrityConstraintViolationException e) {
             JOptionPane.showMessageDialog(this, "El email ya está registrado.");
