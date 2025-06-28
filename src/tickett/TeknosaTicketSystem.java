@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 public class TeknosaTicketSystem extends JFrame {
 
     // Componentes UI y Variables de Estado
+    private JButton createUserButton; // al inicio junto a otros botones
     private JTextField titleField, emailField;
     private JPasswordField passwordField;
     private JTextArea descriptionArea;
@@ -45,6 +46,7 @@ public class TeknosaTicketSystem extends JFrame {
     }
 
     private void initComponents() {
+        createUserButton = new JButton("Crear Usuario");
         titleField = new JTextField(30);
         descriptionArea = new JTextArea(8, 30);
         descriptionArea.setLineWrap(true);
@@ -126,6 +128,7 @@ public class TeknosaTicketSystem extends JFrame {
         formPanel.add(statusCombo, gbc);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.add(createUserButton);
         buttonPanel.add(clearButton);
         buttonPanel.add(submitButton);
         buttonPanel.add(editButton);
@@ -146,6 +149,7 @@ public class TeknosaTicketSystem extends JFrame {
     }
 
     private void setupValidations() {
+        createUserButton.addActionListener(e -> showUserCreationDialog());
         viewHistoryButton.addActionListener(e -> mostrarCronologia());
         statusCombo.addActionListener(e -> updateTicketStatus());
         loginButton.addActionListener(e -> authenticateUser());
@@ -165,7 +169,61 @@ public class TeknosaTicketSystem extends JFrame {
             }
         });
     }
+    
+    // crear usuarios dentro de admin
+    private void showUserCreationDialog() {
+    JTextField nameField = new JTextField();
+    JTextField lastNameField = new JTextField();
+    JTextField emailField = new JTextField();
+    JPasswordField passwordField = new JPasswordField();
 
+    String[] roles = {"Cliente", "Técnico", "Administrador"};
+    JComboBox<String> roleComboBox = new JComboBox<>(roles);
+
+    JPanel panel = new JPanel(new GridLayout(0, 1));
+    panel.add(new JLabel("Nombre:")); panel.add(nameField);
+    panel.add(new JLabel("Apellido:")); panel.add(lastNameField);
+    panel.add(new JLabel("Email:")); panel.add(emailField);
+    panel.add(new JLabel("Contraseña:")); panel.add(passwordField);
+    panel.add(new JLabel("Rol:")); panel.add(roleComboBox);
+
+    int result = JOptionPane.showConfirmDialog(this, panel, "Crear Nuevo Usuario", JOptionPane.OK_CANCEL_OPTION);
+    if (result == JOptionPane.OK_OPTION) {
+        String nombre = nameField.getText().trim();
+        String apellido = lastNameField.getText().trim();
+        String email = emailField.getText().trim();
+        String password = new String(passwordField.getPassword()).trim();
+        String rol = (String) roleComboBox.getSelectedItem();
+
+        if (nombre.isEmpty() || apellido.isEmpty() || email.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Todos los campos son obligatorios.");
+            return;
+        }
+
+        boolean esAdmin = rol.equals("Administrador");
+        boolean esTecnico = rol.equals("Técnico");
+
+        String sql = "INSERT INTO usuarios (nombre, apellido, email, password, es_administrador, es_tecnico) VALUES (?, ?, ?, SHA2(?, 256), ?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, nombre);
+            pstmt.setString(2, apellido);
+            pstmt.setString(3, email);
+            pstmt.setString(4, password);
+            pstmt.setBoolean(5, esAdmin);
+            pstmt.setBoolean(6, esTecnico);
+            pstmt.executeUpdate();
+            logAction("USUARIO", "Nuevo usuario creado por administrador", currentUserId);
+            JOptionPane.showMessageDialog(this, "Usuario creado exitosamente.");
+        } catch (SQLIntegrityConstraintViolationException e) {
+            JOptionPane.showMessageDialog(this, "El email ya está registrado.");
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error SQL: " + e.getMessage());
+        }
+    }
+}
+
+    
     private void setupDatabase() {
         try {
             DatabaseConnection.getConnection();
@@ -227,6 +285,7 @@ public class TeknosaTicketSystem extends JFrame {
     }
     
     private void updateUIBasedOnRole() {
+        createUserButton.setVisible(isAdmin);
         boolean loggedIn = currentUserId != 0; 
         boolean isPrivileged = isAdmin || isSoporte(); 
 
@@ -564,7 +623,7 @@ public class TeknosaTicketSystem extends JFrame {
         return technicians;
     }
 
-    // ==================== MÉTODOS MODIFICADOS PARA CRONOLOGÍA ====================
+    // =================== MÉTODOS MODIFICADOS PARA CRONOLOGÍA ====================
     private void mostrarCronologia() {
         String input = JOptionPane.showInputDialog(this, "ID del ticket para ver su cronología:"); 
         if (input != null && !input.trim().isEmpty()) { 
